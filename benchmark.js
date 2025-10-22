@@ -1,6 +1,6 @@
-import { Suite } from 'benchmark';
 import { pack, unpack } from 'msgpackr';
 import avro from 'avsc';
+import Benchmark from 'benchmark';
 
 const payload = {
   message: 'Benchmark payload testing serialization formats',
@@ -41,7 +41,7 @@ console.log('Avro:', avroEncoded.length, 'bytes');
 console.log('--- Benchmarking ---');
 
 // ----- Benchmark suite -----
-const suite = new Suite();
+const suite = new Benchmark.Suite;
 
 suite
   .add('JSON encode', () => {
