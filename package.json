@@ -2,17 +2,19 @@
   "name": "serialization-compression-tools-benchmark",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "banchmark": "node benchmark.js",
-    "start:server": "node msgpackr/server.js",
+    "benchmark": "node benchmark.js",
+    "start:avsc": "node avsc/server.js",
+    "start:msgpackr": "node msgpackr/server.js",
     "start:frontend": "webpack serve --config msgpackr/webpack.config.js --mode development"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "avsc": "^5.7.9",
+    "benchmark": "^2.1.4",
     "express": "^5.1.0",
     "msgpackr": "^1.11.5",
     "react": "^19.2.0",
