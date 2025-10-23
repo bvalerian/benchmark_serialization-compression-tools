@@ -1,116 +1,97 @@
+# ADR: Use of Binary Encoding for Inter-Service Communication
 
-[Architecture Decision Record](ADR.MD)
+**Status**: Proposed
 
+**Date**: 2025-10-22
 
-
-## event client
-- https://www.asyncapi.com/docs/tutorials/kafka/configure-kafka-avro
-- https://github.com/OpenAPITools/openapi-generator/blob/master/docs/generators/avro-schema.md
-
-### Features
-- Uniform Encoding Contract
-- Encoding/Decoding Middleware: NestJS - decode middleware + encode interceptor. All communicate the same binary format.
-- Content Negotiation: Negotiate format, normalize requests/responses (Content-Type: application/json, application/avro)
+**Context**:
+Our distributed system consists of a BFF and multiple backend microservices (10+). Services communicate primarily through HTTP and Kafka events. Currently, payloads are exchanged using plain JSON. The team is considering introducing binary serialization (e.g., Avro, MessagePack) for internal communication to reduce payload size and enforce schema validation.
 
 
-- Implement dual-mode middleware (JSON ↔ Binary).
-- Add schema registry integration (for Avro).
-- Measure performance improvements and network savings before full rollout.
+## Decision
+Adopt a hybrid strategy:
+
+- Frontend ↔ BFF: Continue using JSON (or optionally MessagePack for performance).
+- BFF ↔ Backend Services & Service ↔ Service: Use a binary serialization format (Avro or MessagePack) for efficiency and schema enforcement.
+
+```mermaid
+sequenceDiagram
+    participant BFF as BFF (NestJS)
+    participant S1 as Service 1
+    participant S2 as Service 2
+    participant S3 as Service 3
+    participant Sn as Service N...
+
+    Note over BFF: Request comes in (JSON or MsgPack)
+    BFF->>BFF: Decode Request (middleware)
+    BFF->>S1: Encode → MsgPack/Avro<br/>Send request
+    S1->>S1: Decode (middleware)<br/>Process<br/>Encode Response
+    S1-->>BFF: MsgPack/Avro Response
+
+    BFF->>S2: Forward request (encoded)
+    S2->>S2: Decode → Process → Encode
+    S2-->>BFF: MsgPack/Avro Response
+
+    BFF->>S3: Same flow
+    S3-->>BFF: Response
+
+    Note over BFF: Aggregates/normalizes responses
+    BFF->>BFF: Decode → Combine → Encode
+    BFF-->>Caller: Final Response (MsgPack/Avro or fallback JSON)
+
+```
+**Explanation of diagram**
+
+BFF (in case it will be):
+- Acts as a translator and enforcer of the serialization format.
+- Decodes incoming requests once.
+- Encodes requests to backend services in the binary format (msgpackr/avsc).
+- Aggregates multiple backend responses, decodes them, merges, and re-encodes.
+
+Backend Services:
+- Each runs with the same encoding/decoding middleware.
+- They don’t care if it’s MsgPack or Avro—the shared lib handles it.
+- Respond back in the same binary format.
 
 
+## Comparison
+- avsc: https://www.npmjs.com/package/avsc
+- msgpackr: https://www.npmjs.com/package/msgpackr
 
-### Quick rule of thumb
+| Criteria                          | JSON (No Encoding)                  | Avro             | MessagePack (msgpackr) |
+| :-------------------------------- |:-----------------------------------:| :---------------:| ----------------------:|
+| Encoding type                     | Text                                | Binary           | Binary |
+| Ease of debugging                 | Human-readable, easy to log.        | Harder           | Harder |
+| Tooling & observability           | Simple with existing HTTP tools.    | Harder           | Harder |
+| Schema validation                 | None                                | Strong           | None |
+| Network efficiency                | Larger payload size.                | Very Compact     | Compact |
+| Performance                       | Moderate                            | Slow             | Fast | 
 
-Frontend clients: JSON / MessagePack
+#### Pros of Encoding
+- Binary encoding reduces payloads by 30%.
+- Stronger contracts (with Avro enforce schemas).
+- Performance boost: Binary serialization/deserialization can be 3–5× faster.
+- Standardization: Enables typed code generation and eliminates manual JSON mapping.
+- Simple integration: Works in browsers and Node.js without schema registries.
 
-Inter-service HTTP / gRPC: Avro (if schemas matter)
+#### Cons of Encoding (avro)
+- Requires schema management and registry integration.
+- Debugging logs or inspecting messages on the wire becomes harder.
+- Requires a central schema registry and strict version control.
+- Needs decoding tools for inspection.
+- Most browsers and frontend frameworks don’t natively support Avro.
 
-Data streaming / Kafka / long-lived pipelines: Avro is the standard
+#### Cons of Encoding (msgpackr)
+- No schema validation.
+- Harder to inspect in logs or proxies.
 
+## Performance Tests
+#### Operational benchmark (represents number of operations for each step) - 1.000 pre-generated records:
+![Benchmark](./benchmark/results/operational_benchmark.png)
 
-### When Avro is not worth it
+#### Autocannon benchmark (read only, encode once and return the result) - 100.000 records:
+![Benchmark](./benchmark/results/JSON_MsgPack_Avsc.png)
 
-Frontend-facing APIs (browser/mobile):
-Most browsers and frontend frameworks don’t natively support Avro. You’d need extra libraries, adding bundle size and complexity.
-→ Better to use JSON or msgpackr for frontend.
+#### Autocannon benchmark (getting data from external source, unpacking, packing again before response) - 100.000 records:
+![Benchmark](./benchmark/results/JSON_MsgPack_Avsc-with-encoding-decoding.png)
 
-Low-traffic or small payloads:
-JSON’s human readability outweighs binary efficiency here.
-
-Rapidly evolving endpoints without schema discipline:
-Avro forces schema rigor. If your team isn’t disciplined, you’ll just create friction.
-
-
------
-You’ve got Frontend → BFF (Backend-for-Frontend) → 10 backend microservices, and you want all communication to be efficiently serialized with msgpackr or avsc.
-
-Here’s how you’d approach it:
-
-1. Core Principles
-
-Uniform Encoding Contract
-Define once: every service must send and receive payloads in a chosen binary format (MessagePack or Avro).
-
-MessagePack (msgpackr) if you want speed + schema-less simplicity.
-
-Avro (avsc) if you want strong schemas and evolution guarantees.
-
-Content Negotiation
-Use the Accept and Content-Type headers to decide format:
-
-application/json → send JSON (fallback).
-
-application/x-msgpack → send msgpack.
-
-application/avro → send Avro.
-
-Encoding/Decoding Middleware
-Don’t sprinkle pack/unpack everywhere. Build a middleware or interceptor layer in NestJS (and other services) so that every request/response automatically encodes/decodes.
-
-Shared Libraries
-Put serializers (msgpackr/avsc) into a shared npm package used by the BFF and all backend services, so they don’t drift apart.
-
-
-4. Backend Services (Microservices)
-
-Same pattern as NestJS BFF:
-
-Each service runs decode middleware + encode interceptor.
-
-Or, if they’re not NestJS, just add Express/Koa middleware for msgpackr.
-
-For Avro: load schema from shared lib and wrap encode/decode in middleware.
-
-5. BFF as Translator
-
-The BFF becomes the negotiation point:
-
-Talks msgpack/avro with frontend.
-
-Talks msgpack/avro (or even JSON for legacy) with backend services.
-
-Can normalize headers and ensure consistent behavior.
-
-
-6. Testing in a Distributed Setup
-
-Write an integration test that calls through Frontend → BFF → Service and ensures encoding survives all hops.
-
-
-7. Scaling Concerns
-
-Schema Registry (for Avro): Keep schemas in a central repo (or Confluent-like registry).
-
-Versioning: If services evolve, use Avro’s backward/forward compatibility or msgpack with “feature flags”.
-
-Monitoring: Add middleware logging to record content-type usage and payload sizes.
-
-Fallback: Always support JSON fallback for clients that can’t handle binary.
-
-In short:
-
-Frontend: decode based on Content-Type.
-
-BFF: negotiate format, normalize requests/responses.
-
-Services: all speak the same binary tongue, thanks to middleware/interceptors.

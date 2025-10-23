@@ -4,9 +4,9 @@
   "description": "",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "benchmark": "node benchmark.js",
-    "start:avsc": "node avsc/server.js",
-    "start:msgpackr": "node msgpackr/server.js"
+    "benchmark": "node benchmark/autocannon.js",
+    "start": "node server.js",
+    "start:transport": "node transport-only.js"
   },
   "keywords": [],
   "author": "",

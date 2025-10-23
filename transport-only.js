@@ -1,5 +1,5 @@
 import {pack} from 'msgpackr';
-import {generatePayload} from './data.js';
+import {generatePayload} from '../data.js';
 import express from 'express';
 import avro from 'avsc';
 
@@ -38,6 +38,9 @@ const avroSchema = {
     }
   ]
 };
+const avroType = avro.Type.forSchema(avroSchema);
+const avroPackedPayload = avroType.toBuffer(payload);
+const msgPackrPackedPayload = pack(payload);
 
 function performanceMIddleware(req, res, next) {
     const start = process.hrtime.bigint();
@@ -55,37 +58,24 @@ app.use(performanceMIddleware);
 app.use(express.json());
 
 app.get('/api/avro', (req, res) => {
-    const avroType = avro.Type.forSchema(avroSchema);
-    const avroPackedPayload = avroType.toBuffer(payload);
-    const unpacked = avroType.fromBuffer(avroPackedPayload);
-    const packedAgain = avroType.toBuffer(unpacked)
-
     res.setHeader('Content-Type', 'application/avro');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.send(packedAgain);
+    res.send(avroPackedPayload);
 });
 
 app.get('/api/msgpack', (req, res) => {
-    const msgPackrPackedPayload = pack(payload); // getting data from external source
-    const unpackedPayload = unpack(msgPackrPackedPayload); // unpacking
-    const packedAgain = pack(unpackedPayload); // packing again before response
-
     res.setHeader('Content-Type', 'application/msgpack');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.send(packedAgain);
+    res.send(msgPackrPackedPayload);
 });
 
 app.get('/api/json', (req, res) => {
-    const toString = JSON.stringify(payload); // getting data from external source
-    const parsed = JSON.parse(toString); // unpacking
-    const toStringAgain = JSON.stringify(parsed); // packing again before response
-
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.send(toStringAgain);
+    res.send(payload);
 });
 
 app.get('/', (req, res) => {
