@@ -1,9 +1,6 @@
 
 [Architecture Decision Record](ADR.MD)
 
-- Implement dual-mode middleware (JSON ↔ Binary).
-- Add schema registry integration (for Avro).
-- Measure performance improvements and network savings before full rollout.
 
 
 ## event client
@@ -14,6 +11,12 @@
 - Uniform Encoding Contract
 - Encoding/Decoding Middleware: NestJS - decode middleware + encode interceptor. All communicate the same binary format.
 - Content Negotiation: Negotiate format, normalize requests/responses (Content-Type: application/json, application/avro)
+
+
+- Implement dual-mode middleware (JSON ↔ Binary).
+- Add schema registry integration (for Avro).
+- Measure performance improvements and network savings before full rollout.
+
 
 
 ### Quick rule of thumb
@@ -111,55 +114,3 @@ Frontend: decode based on Content-Type.
 BFF: negotiate format, normalize requests/responses.
 
 Services: all speak the same binary tongue, thanks to middleware/interceptors.
-
-
-------
-
-```mermaid
-sequenceDiagram
-    participant BFF as BFF (NestJS)
-    participant S1 as Service 1
-    participant S2 as Service 2
-    participant S3 as Service 3
-    participant Sn as Service N...
-
-    Note over BFF: Request comes in (JSON or MsgPack)
-    BFF->>BFF: Decode Request (middleware)
-    BFF->>S1: Encode → MsgPack/Avro<br/>Send request
-    S1->>S1: Decode (middleware)<br/>Process<br/>Encode Response
-    S1-->>BFF: MsgPack/Avro Response
-
-    BFF->>S2: Forward request (encoded)
-    S2->>S2: Decode → Process → Encode
-    S2-->>BFF: MsgPack/Avro Response
-
-    BFF->>S3: Same flow
-    S3-->>BFF: Response
-
-    Note over BFF: Aggregates/normalizes responses
-    BFF->>BFF: Decode → Combine → Encode
-    BFF-->>Caller: Final Response (MsgPack/Avro or fallback JSON)
-
-```
-Explanation
-
-BFF:
-
-Acts as a translator and enforcer of the serialization format.
-
-Decodes incoming requests once.
-
-Encodes requests to backend services in the binary format (msgpackr/avsc).
-
-Aggregates multiple backend responses, decodes them, merges, and re-encodes.
-
-Backend Services:
-
-Each runs with the same encoding/decoding middleware.
-
-They don’t care if it’s MsgPack or Avro—the shared lib handles it.
-
-Respond back in the same binary format.
-
-Final Output:
-BFF can return to caller either binary (application/x-msgpack / application/avro) or fallback JSON.

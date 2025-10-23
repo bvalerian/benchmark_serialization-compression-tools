@@ -6,17 +6,19 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "benchmark": "node benchmark.js",
     "start:avsc": "node avsc/server.js",
-    "start:msgpackr": "node msgpackr/server.js",
-    "start:frontend": "webpack serve --config msgpackr/webpack.config.js --mode development"
+    "start:msgpackr": "node msgpackr/server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "autocannon": "^8.0.0",
     "avsc": "^5.7.9",
     "benchmark": "^2.1.4",
+    "chalk": "^5.6.2",
     "express": "^5.1.0",
     "msgpackr": "^1.11.5",
+    "pretty-bytes": "^7.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   }
