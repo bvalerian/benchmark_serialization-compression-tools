@@ -1,0 +1,25 @@
+{
+  "name": "serialization-compression-tools-benchmark",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "benchmark": "node benchmark/autocannon.js",
+    "start": "node server.js",
+    "start:transport": "node transport-only.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "autocannon": "^8.0.0",
+    "avsc": "^5.7.9",
+    "benchmark": "^2.1.4",
+    "chalk": "^5.6.2",
+    "express": "^5.1.0",
+    "msgpackr": "^1.11.5",
+    "pretty-bytes": "^7.1.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
+}
